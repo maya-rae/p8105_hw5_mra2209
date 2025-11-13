@@ -7,6 +7,7 @@ output: html_document
 
 ```{r, include = FALSE, message = FALSE, warning = FALSE}
 library(tidyverse)
+library(broom)
 
 knitr::opts_chunk$set(
   echo = TRUE,
@@ -28,7 +29,7 @@ scale_fill_discrete = scale_fill_viridis_d
 ```
 
 
-## Problem 1
+## Problem 1: The birthday simulation
 
 I want to first create a function to simulate if at least two people share a birthday.
 
@@ -44,7 +45,7 @@ bday_share = function(n_ppl) {
 Now I will run the simulation 10,000 times for each group size between 2 and 50.
 
 ```{r}
-set.seed(133)
+set.seed(2025)
 
 n_simulation = 10000
 group_sizes = 2:50
@@ -80,11 +81,133 @@ ggplot(results, aes(x = group_size, y = prob_shared)) +
 The probability that two people share a birthday quickly rises as the group size (n) increases. With a group size of 23, the probability exceeds 0.50, which means that it is more likely than not that two people share a birthday when `n` is 23 or above.
 
 
-## Problem 2
-Is it likely that a true effect will be detected?? We want to test whether a false null hypothesis will be rejected, which is power. This depends on the sample size, the effect size, and the error variance. This simulation will explore power in a one sample t-test where, 
+## Problem 2: Power simulation using a one-sample t-test
+ 
+First, I will define my parameters.
 
-- `n` is 30
-- `sigma` is 5
+```{r}
+
+n = 30
+mu = 0
+sigma = 5
+n_sim = 5000
+
+```
+
+Now I will define the function and run the simulation. 
+
+```{r}
+
+t_results = map_dfr(1:n_sim, function(i){
+  
+  # to generate one dataset
+  x = rnorm(n, mean = mu, sd = sigma)
+  
+  # to run a one sample t-test for H0
+  test_out = t.test(x, mu = 0) 
+    
+  # to extract the estimate and p-value with broom::tidy
+  tidy(test_out) |>
+    select(estimate, p.value) |> 
+    mutate(sim = i)
+  
+  }  
+)
+
+# checking the first couple rows
+head(results)
+```
+
+I will estimate the probability of rejecting the null (power).
+
+```{r}
+power_estimate = t_results |> 
+  summarize(power = mean(p.value < 0.05)) |> 
+  pull(power)
+
+power_estimate
+```
+
+Now, I will explore power for different true means by looping over my vector `{1,2,3,4,5,6}`
+
+```{r}
+mu_values = 1:6
+
+power_results = map_dfr(mu_values, function(mu_true){
+  
+  # run simulations for the new mu
+  map_dfr(1:n_sim, function(i) {
+    x = rnorm(n, mean = mu_true, sd = sigma)
+    
+  # another one sample t-test against H0
+    t.test(x, mu = 0) |> 
+      tidy() |> 
+      select(estimate, p.value) |> 
+      mutate(sim = i, mu_true = mu_true)
+    }
+  )
+  
+  }
+)
+# checking the first couple of rows
+head(power_results)
+```
+
+I will compute the empirical power for each true mean.
+
+```{r}
+power_mu = power_results |> 
+  group_by(mu_true) |> 
+  summarize(power = mean(p.value < 0.05))
+
+power_mu
+```
+
+I will now plot the power curve.
+
+```{r}
+ggplot(power_mu, aes(x = mu_true, y = power)) + 
+  geom_line(color = "blue") + 
+  geom_point(color = "darkblue", size = 2) + 
+  scale_y_continuous(limits = c(0,1)) +
+  labs(
+    title = "Power Curve for One Sample t-Test",
+    x = "True Mean (μ)",
+    y = "Empirical Power")
+```
+
+We see that power increases as the true mean moves further away from 0. The smaller the true  mean, the greater the empirical power increases. In other words, we see the curve rise quickly at first, and approach 1 as it becomes large enough that the null is almost always rejected. This demonstrates a key statistical principle: larger effect sizes (the true difference between the population mean and the null hypothesis value) make it easier to detect differences.
+
+Now I will explore how selection bias could influence my results.
+
+First, I will compute the averages.
+```{r}
+avg_estimates = power_results |> 
+  group_by(mu_true) |> 
+  summarize(
+    avg_all = mean(estimate),
+    avg_rejected = mean(estimate[p.value < 0.05])
+  )
+```
+
+Then, I will plot them.
+
+```{r}
+ggplot(avg_estimates, aes(x = mu_true)) +
+  geom_line(aes(y = avg_all, color = "All simulations")) +
+  geom_point(aes(y = avg_all, color = "All simulations"), size = 2) +
+  geom_line(aes(y = avg_rejected, color = "Rejected null"), linetype = "dashed") +
+  geom_point(aes(y = avg_rejected, color = "Rejected null"), size = 2) +
+  labs(
+    title = "Comparison of Avg. Sample Mean vs. True Mean",
+    x = "True Mean (μ)",
+    y = "Average Sample Mean (μ̂)",
+    color = ""
+  )
+
+```
+
+Looking at all simulations, indicated by the solid line, the average of the sample mean is very close to the true mean, which is expected per the law of large numbers. Looking at only the rejected null, the average of the sample mean is slightly larger than the true mean. This is particularly true at smaller effect sizes. There is a selection bias at small effect sizes, because the t-test will only rejet the null if the observed sample mean is unusually large due to random variation. Thus, the sample  mean trends to overestimate the true mean.
 
 
 ## Problem 3
