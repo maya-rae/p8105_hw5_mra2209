@@ -1,0 +1,90 @@
+---
+title: "HW5: Iteration"
+author: "Maya Arnott"
+date: "2025-11-12"
+output: html_document
+---
+
+```{r, include = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+  )
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+
+## Problem 1
+
+I want to first create a function to simulate if at least two people share a birthday.
+
+```{r}
+bday_share = function(n_ppl) {
+  bdays = sample(1:365 , size = n_ppl, replace = TRUE)
+  
+  any(duplicated(bdays))
+}
+
+```
+
+Now I will run the simulation 10,000 times for each group size between 2 and 50.
+
+```{r}
+set.seed(133)
+
+n_simulation = 10000
+group_sizes = 2:50
+```
+
+
+For each group, I will compute the probability of a shared birthday
+
+
+```{r}
+results = map_dfr(group_sizes, function(n) {
+  
+  prob = replicate(n_simulation, bday_share(n))
+  tibble(group_size = n, prob_shared = mean(prob))
+         
+})
+```
+
+I will plot my results. 
+
+```{r}
+ggplot(results, aes(x = group_size, y = prob_shared)) +
+  geom_line(color = "blue") + 
+  geom_point(color = "darkblue", size = 2) + 
+  labs(
+    title = "Probability of at Least Two People Sharing a Birthday",
+    x = "Group Size (n)",
+    y = "Probability",
+    caption = "10,000 simulations run per group size"
+  )
+```
+
+The probability that two people share a birthday quickly rises as the group size (n) increases. With a group size of 23, the probability exceeds 0.50, which means that it is more likely than not that two people share a birthday when `n` is 23 or above.
+
+
+## Problem 2
+Is it likely that a true effect will be detected?? We want to test whether a false null hypothesis will be rejected, which is power. This depends on the sample size, the effect size, and the error variance. This simulation will explore power in a one sample t-test where, 
+
+- `n` is 30
+- `sigma` is 5
+
+
+## Problem 3
