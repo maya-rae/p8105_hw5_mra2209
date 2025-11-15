@@ -211,3 +211,4 @@ Looking at all simulations, indicated by the solid line, the average of the samp
 
 
 ## Problem 3
+
